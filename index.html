@@ -12,6 +12,7 @@
   --accent: #6cf2c2;
   --warn: #ff6b6b;
   --active: #ffd166;
+  --muted: #aab;
 }
 * { box-sizing: border-box; }
 body {
@@ -38,8 +39,8 @@ h1 {
 }
 button {
   width: 100%;
-  font-size: 1.4rem;
-  padding: 1.2rem;
+  font-size: 1.3rem;
+  padding: 1.1rem;
   border-radius: 14px;
   border: none;
   font-weight: bold;
@@ -52,9 +53,15 @@ button {
   background: var(--active);
   color: #000;
 }
+.reset {
+  background: transparent;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+  margin-top: 0.5rem;
+}
 .status {
   text-align: center;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
 }
 .big {
   font-size: 2rem;
@@ -73,8 +80,10 @@ th, td {
 }
 .footer {
   font-size: 0.75rem;
-  opacity: 0.7;
+  color: var(--muted);
   text-align: center;
+  margin-top: 1.5rem;
+  line-height: 1.4;
 }
 .timer {
   font-size: 1.8rem;
@@ -106,27 +115,50 @@ th, td {
       </thead>
       <tbody id="log"></tbody>
     </table>
+    <button class="reset" onclick="resetData()">Reset All Data</button>
   </div>
 
   <div class="footer">
-    Rolling 60-minute window • Data stays on this device
+    This tool is for informational purposes only and is not medical advice.<br>
+    Always follow the guidance of your medical team or healthcare provider.
   </div>
 </div>
 
 <script>
-let contractions = JSON.parse(localStorage.getItem("contractions") || "[]");
+/* ========= Storage versioning ========= */
+const STORAGE_VERSION = "v1";
+const STORAGE_KEY = `contractions_${STORAGE_VERSION}`;
 
+/* ========= Load with migration ========= */
+let contractions = loadData();
+
+function loadData() {
+  // Try current version
+  const current = localStorage.getItem(STORAGE_KEY);
+  if (current) return JSON.parse(current);
+
+  // Migrate legacy key if present
+  const legacy = localStorage.getItem("contractions");
+  if (legacy) {
+    localStorage.setItem(STORAGE_KEY, legacy);
+    localStorage.removeItem("contractions");
+    return JSON.parse(legacy);
+  }
+
+  return [];
+}
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(contractions));
+}
+
+/* ========= Timer logic ========= */
 let timerRunning = false;
 let startTime = null;
 let timerInterval = null;
 
-function save() {
-  localStorage.setItem("contractions", JSON.stringify(contractions));
-}
-
 function toggleTimer() {
   if (!timerRunning) {
-    // START
     timerRunning = true;
     startTime = Date.now();
     document.getElementById("timerBtn").innerText = "⏹ Stop & Save";
@@ -134,17 +166,13 @@ function toggleTimer() {
     timerInterval = setInterval(updateTimer, 500);
     if (navigator.vibrate) navigator.vibrate(50);
   } else {
-    // STOP
     timerRunning = false;
     clearInterval(timerInterval);
-
     const durationSec = Math.round((Date.now() - startTime) / 1000);
     addContraction(durationSec);
-
     document.getElementById("timerBtn").innerText = "▶ Start Contraction";
     document.getElementById("timerBtn").className = "start";
     document.getElementById("timerDisplay").innerText = "00:00";
-
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
   }
 }
@@ -156,96 +184,82 @@ function updateTimer() {
   document.getElementById("timerDisplay").innerText = `${m}:${s}`;
 }
 
+/* ========= Data handling ========= */
 function addContraction(duration) {
   const now = new Date();
   const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds()/60;
-
   contractions.push({
     time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
     minutes,
     duration
   });
-
   contractions.sort((a,b)=>a.minutes-b.minutes);
   save();
   render();
 }
 
+function resetData() {
+  if (!confirm("This will permanently erase all contraction data on this device. Continue?")) return;
+  contractions = [];
+  localStorage.removeItem(STORAGE_KEY);
+  render();
+  document.getElementById("status").innerText = "Data reset. Ready to start.";
+}
+
+/* ========= Rendering & analytics ========= */
 function render() {
   const tbody = document.getElementById("log");
   tbody.innerHTML = "";
-
   contractions.forEach((c,i)=>{
     const gap = i===0 ? "" : (c.minutes - contractions[i-1].minutes).toFixed(1);
-    tbody.innerHTML += `<tr>
-      <td>${c.time}</td>
-      <td>${c.duration}</td>
-      <td>${gap}</td>
-    </tr>`;
+    tbody.innerHTML += `<tr><td>${c.time}</td><td>${c.duration}</td><td>${gap}</td></tr>`;
   });
-
   updateStatus();
 }
 
 function updateStatus() {
   if (contractions.length < 3) return;
-
   const last = contractions[contractions.length-1].minutes;
   const window = contractions.filter(c => last - c.minutes <= 60);
   if (window.length < 3) return;
 
-  let gaps = [];
-  for (let i=1;i<window.length;i++) {
-    gaps.push(window[i].minutes - window[i-1].minutes);
-  }
+  let gaps=[];
+  for(let i=1;i<window.length;i++) gaps.push(window[i].minutes-window[i-1].minutes);
 
   const avgGap = avg(gaps);
   const avgDur = avg(window.map(c=>c.duration));
-  const meets = avgGap <= 5 && avgDur >= 60;
+  const meets = avgGap<=5 && avgDur>=60;
 
   document.getElementById("status").innerHTML = `
-    <div class="big ${meets ? 'alert' : 'ok'}">
-      ${meets ? '5-1-1 MET' : 'Not 5-1-1'}
-    </div>
+    <div class="big ${meets?'alert':'ok'}">${meets?'5-1-1 MET':'Not 5-1-1'}</div>
     Avg spacing: ${avgGap.toFixed(1)} min<br>
     Avg duration: ${avgDur.toFixed(0)} sec<br>
     ${forecast(window)}
   `;
-
-  if (meets && navigator.vibrate) navigator.vibrate([200,100,200]);
 }
 
-function forecast(window) {
-  if (window.length < 5) return "Forecast: gathering data";
-
-  let x=[], y=[];
-  for (let i=1;i<window.length;i++) {
+function forecast(window){
+  if(window.length<5) return "Forecast: gathering data";
+  let x=[],y=[];
+  for(let i=1;i<window.length;i++){
     x.push(window[i].minutes);
-    y.push(window[i].minutes - window[i-1].minutes);
+    y.push(window[i].minutes-window[i-1].minutes);
   }
-
-  const slope = linearSlope(x,y);
-  if (slope >= 0) return "Forecast: no tightening trend";
-
-  const lastGap = y[y.length-1];
-  const mins = (5 - lastGap) / slope;
-  if (mins < 0) return "Forecast: unstable";
-
-  const t = window[window.length-1].minutes + mins;
-  const h = Math.floor(t/60)%24;
-  const m = Math.round(t%60).toString().padStart(2,'0');
+  const slope=linearSlope(x,y);
+  if(slope>=0) return "Forecast: no tightening trend";
+  const mins=(5-y[y.length-1])/slope;
+  if(mins<0) return "Forecast: unstable";
+  const t=window[window.length-1].minutes+mins;
+  const h=Math.floor(t/60)%24;
+  const m=Math.round(t%60).toString().padStart(2,'0');
   return `Forecast ~ ${h}:${m}`;
 }
 
-function avg(a){ return a.reduce((s,v)=>s+v,0)/a.length; }
-
+function avg(a){return a.reduce((s,v)=>s+v,0)/a.length;}
 function linearSlope(x,y){
-  const xm = avg(x), ym = avg(y);
+  const xm=avg(x), ym=avg(y);
   let n=0,d=0;
-  for(let i=0;i<x.length;i++){
-    n+=(x[i]-xm)*(y[i]-ym);
-    d+=(x[i]-xm)**2;
-  }
+  for(let i=0;i<x.length;i++){n+=(x[i]-xm)*(y[i]-ym);d+=(x[i]-xm)**2;}
   return n/d;
 }
 
