@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Contraction Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      max-width: 720px;
+      margin: auto;
+      padding: 1rem;
+      background: #fafafa;
+    }
+    h1 { font-size: 1.5rem; }
+    input, button {
+      padding: 0.5rem;
+      margin: 0.25rem 0;
+      font-size: 1rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }
+    th, td {
+      border-bottom: 1px solid #ddd;
+      padding: 0.5rem;
+      text-align: center;
+    }
+    .status {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #fff;
+      border-radius: 6px;
+    }
+    .alert {
+      color: #b00020;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Contraction Tracker</h1>
+
+<label>Start Time:</label><br>
+<input type="time" id="time"><br>
+
+<label>Duration (seconds):</label><br>
+<input type="number" id="duration"><br>
+
+<button onclick="addContraction()">Add Contraction</button>
+
+<table>
+  <thead>
+    <tr>
+      <th>Time</th>
+      <th>Duration (s)</th>
+      <th>Spacing (min)</th>
+    </tr>
+  </thead>
+  <tbody id="table"></tbody>
+</table>
+
+<div class="status" id="status"></div>
+
+<script>
+let contractions = [];
+
+function addContraction() {
+  const time = document.getElementById('time').value;
+  const duration = Number(document.getElementById('duration').value);
+
+  if (!time || !duration) return;
+
+  const minutes = toMinutes(time);
+  contractions.push({ time, minutes, duration });
+  contractions.sort((a, b) => a.minutes - b.minutes);
+
+  render();
+}
+
+function toMinutes(t) {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function render() {
+  const tbody = document.getElementById('table');
+  tbody.innerHTML = '';
+
+  contractions.forEach((c, i) => {
+    const spacing = i === 0 ? '' :
+      (c.minutes - contractions[i - 1].minutes).toFixed(1);
+
+    tbody.innerHTML += `
+      <tr>
+        <td>${c.time}</td>
+        <td>${c.duration}</td>
+        <td>${spacing}</td>
+      </tr>
+    `;
+  });
+
+  updateStatus();
+}
+
+function updateStatus() {
+  if (contractions.length < 3) return;
+
+  const last = contractions[contractions.length - 1].minutes;
+  const window = contractions.filter(c => last - c.minutes <= 60);
+
+  if (window.length < 3) return;
+
+  const spacings = [];
+  for (let i = 1; i < window.length; i++) {
+    spacings.push(window[i].minutes - window[i - 1].minutes);
+  }
+
+  const avgSpacing = avg(spacings);
+  const avgDuration = avg(window.map(c => c.duration));
+
+  const meets511 = avgSpacing <= 5 && avgDuration >= 60;
+
+  const forecast = forecastTime(window);
+
+  document.getElementById('status').innerHTML = `
+    <strong>Last 60 min average:</strong><br>
+    Spacing: ${avgSpacing.toFixed(1)} min<br>
+    Duration: ${avgDuration.toFixed(0)} sec<br><br>
+    ${meets511 ? '<span class="alert">Meets 5-1-1 criteria</span>' : 'Not at 5-1-1 yet'}<br><br>
+    <strong>Estimated time to 5-min spacing:</strong><br>
+    ${forecast ?? 'Insufficient trend'}
+  `;
+}
+
+function avg(arr) {
+  return arr.reduce((a, b) => a + b, 0) / arr.length;
+}
+
+// Simple linear forecast on spacing trend
+function forecastTime(window) {
+  if (window.length < 4) return null;
+
+  const x = [];
+  const y = [];
+
+  for (let i = 1; i < window.length; i++) {
+    x.push(window[i].minutes);
+    y.push(window[i].minutes - window[i - 1].minutes);
+  }
+
+  const slope = linearSlope(x, y);
+  if (slope >= 0) return 'No tightening trend detected';
+
+  const lastSpacing = y[y.length - 1];
+  const minutesToFive = (5 - lastSpacing) / slope;
+
+  if (minutesToFive < 0) return 'Trend unstable';
+
+  const forecastMinutes = window[window.length - 1].minutes + minutesToFive;
+  const h = Math.floor(forecastMinutes / 60) % 24;
+  const m = Math.round(forecastMinutes % 60).toString().padStart(2, '0');
+
+  return `${h}:${m}`;
+}
+
+function linearSlope(x, y) {
+  const n = x.length;
+  const xMean = avg(x);
+  const yMean = avg(y);
+
+  let num = 0, den = 0;
+  for (let i = 0; i < n; i++) {
+    num += (x[i] - xMean) * (y[i] - yMean);
+    den += (x[i] - xMean) ** 2;
+  }
+  return num / den;
+}
+</script>
+
+</body>
+</html>
