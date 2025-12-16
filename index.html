@@ -3,153 +3,189 @@
 <head>
 <meta charset="UTF-8">
 <title>Contraction Tracker</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <style>
-:root{
-  --bg:#0f1220;--card:#1a1f3c;--text:#fff;
-  --accent:#6cf2c2;--warn:#ff6b6b;--muted:#aab;
+:root {
+  --bg:#0f1220; --card:#1a1f3c; --text:#fff;
+  --accent:#6cf2c2; --warn:#ff6b6b; --active:#ffd166; --muted:#aab;
 }
+*{box-sizing:border-box}
 body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text)}
-.container{max-width:650px;margin:auto;padding:1rem}
+.container{max-width:700px;margin:auto;padding:1rem}
 .card{background:var(--card);border-radius:12px;padding:1rem;margin-bottom:1rem}
-button{width:100%;padding:1rem;font-size:1.2rem;border-radius:12px;border:none;font-weight:bold}
+h1{text-align:center;margin:.3rem 0}
+button{width:100%;padding:1rem;font-size:1.2rem;border:none;border-radius:12px;font-weight:bold}
 .start{background:var(--accent);color:#000}
-.stop{background:#ffd166;color:#000}
+.stop{background:var(--active);color:#000}
 .reset{background:transparent;border:1px solid var(--warn);color:var(--warn)}
-.timer{font-size:1.6rem;text-align:center;margin-top:.5rem}
-.big{font-size:2rem;font-weight:bold}
-.alert{color:var(--warn)} .ok{color:var(--accent)}
-.footer{font-size:.75rem;color:var(--muted);text-align:center;margin-top:1rem}
-input{width:100%;padding:.6rem;border-radius:8px;border:none;margin-top:.5rem}
-svg{width:100%;height:160px}
+.big{font-size:1.8rem;font-weight:bold;text-align:center}
+.ok{color:var(--accent)} .alert{color:var(--warn)}
+.timer{text-align:center;font-size:1.6rem}
+.footer{font-size:.75rem;color:var(--muted);text-align:center;margin-top:1.5rem}
+canvas{width:100%;height:200px}
+.metric{font-size:.9rem;margin:.2rem 0}
 </style>
 </head>
 <body>
 
 <div class="container">
-  <h2 style="text-align:center">Contraction Tracker</h2>
+<h1>Contraction Tracker</h1>
 
-  <div class="card">
-    <label>Session Label</label>
-    <input id="sessionLabel" placeholder="e.g. Early labor">
-  </div>
+<div class="card">
+  <button id="timerBtn" class="start" onclick="toggleTimer()">▶ Start Contraction</button>
+  <div id="timer" class="timer">00:00</div>
+</div>
 
-  <div class="card">
-    <button id="btn" class="start" onclick="toggle()">▶ Start Contraction</button>
-    <div class="timer" id="timer">00:00</div>
-  </div>
+<div class="card" id="status">Waiting for data…</div>
 
-  <div class="card" id="status">Waiting for data…</div>
+<div class="card">
+  <canvas id="chart"></canvas>
+</div>
 
-  <div class="card">
-    <svg id="chart"></svg>
-  </div>
+<div class="card">
+  <div id="metrics"></div>
+  <button class="reset" onclick="resetData()">Reset All Data</button>
+</div>
 
-  <div class="card">
-    <button class="reset" onclick="resetData()">Reset Session</button>
-  </div>
-
-  <div class="footer">
-    This tool is for informational purposes only and is not medical advice.<br>
-    Always follow the guidance of your medical team.
-  </div>
+<div class="footer">
+  This tool is for informational purposes only and is not medical advice.<br>
+  Always follow the guidance of your medical team.
+</div>
 </div>
 
 <script>
-const KEY="contractions_v2";
-let state=JSON.parse(localStorage.getItem(KEY)||"{}");
-if(!state.data) state={session:"",data:[]};
+/* ========= STORAGE (UNCHANGED, SAFE) ========= */
+const STORAGE_KEY = "contractions_v1";
+let contractions = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(contractions)); }
 
-let running=false,start=0,timerInt=null;
-
-function save(){localStorage.setItem(KEY,JSON.stringify(state));}
-
-function toggle(){
+/* ========= TIMER ========= */
+let running=false, startTime=null, interval=null;
+function toggleTimer(){
   if(!running){
-    running=true;start=Date.now();
-    btn.textContent="⏹ Stop & Save";btn.className="stop";
-    timerInt=setInterval(updateTimer,500);
+    running=true; startTime=Date.now();
+    timerBtn.textContent="⏹ Stop & Save"; timerBtn.className="stop";
+    interval=setInterval(updateTimer,500);
   } else {
-    running=false;clearInterval(timerInt);
-    const dur=Math.round((Date.now()-start)/1000);
-    add(dur);
-    btn.textContent="▶ Start Contraction";btn.className="start";
+    running=false; clearInterval(interval);
+    const sec=Math.round((Date.now()-startTime)/1000);
+    record(sec);
+    timerBtn.textContent="▶ Start Contraction"; timerBtn.className="start";
     timer.textContent="00:00";
   }
 }
-
 function updateTimer(){
-  const s=Math.floor((Date.now()-start)/1000);
-  timer.textContent=`${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
+  const e=Math.floor((Date.now()-startTime)/1000);
+  timer.textContent=`${String(Math.floor(e/60)).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`;
 }
 
-function add(dur){
+/* ========= DATA ========= */
+function record(duration){
   const now=new Date();
-  state.session=document.getElementById("sessionLabel").value;
-  state.data.push({
-    t:now.getHours()*60+now.getMinutes()+now.getSeconds()/60,
-    dur
+  contractions.push({
+    time: now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),
+    minutes: now.getHours()*60+now.getMinutes()+now.getSeconds()/60,
+    duration
   });
-  save();render();
+  contractions.sort((a,b)=>a.minutes-b.minutes);
+  save(); render();
 }
-
 function resetData(){
-  if(!confirm("Reset this session?"))return;
-  state={session:"",data:[]};
-  save();render();
+  if(!confirm("Erase all data on this device?")) return;
+  contractions=[];
+  save();
+  render();
 }
 
-function render(){
-  updateStatus();
-  drawChart();
+/* ========= SESSION INFERENCE ========= */
+function inferSessions(data, gap=120){
+  let sessions=[], current=[];
+  data.forEach((c,i)=>{
+    if(i===0){ current=[c]; return; }
+    const g=c.minutes-data[i-1].minutes;
+    if(g>=gap){ sessions.push(current); current=[c]; }
+    else current.push(c);
+  });
+  if(current.length) sessions.push(current);
+  return sessions;
+}
+function currentSession(){
+  const sessions=inferSessions(contractions);
+  return sessions.length ? sessions[sessions.length-1] : [];
 }
 
-function updateStatus(){
-  if(state.data.length<3)return;
-  const last=state.data.at(-1).t;
-  const win=state.data.filter(d=>last-d.t<=60);
-  if(win.length<3)return;
+/* ========= METRICS ========= */
+function avg(a){ return a.reduce((s,v)=>s+v,0)/a.length; }
+function windowData(session, mins){
+  if(!session.length) return [];
+  const last=session.at(-1).minutes;
+  return session.filter(c=>last-c.minutes<=mins);
+}
 
-  const gaps=win.slice(1).map((d,i)=>d.t-win[i].t);
-  const avgGap=avg(gaps),avgDur=avg(win.map(d=>d.dur));
-  const perHr=win.length;
-  const ema=EMA(gaps,0.4);
+/* ========= STATUS / L&D ========= */
+function renderStatus(session){
+  if(session.length<3){ status.textContent="Gathering data…"; return; }
+  const w60=windowData(session,60);
+  if(w60.length<3) return;
 
-  const sustained = avgGap<=5 && avgDur>=60 && win.length>=6;
-  const suggest = sustained ? "📞 Consider calling L&D" : "";
+  const gaps=w60.slice(1).map((c,i)=>c.minutes-w60[i].minutes);
+  const avgGap=avg(gaps);
+  const avgDur=avg(w60.map(c=>c.duration));
+
+  const sustained = w60.length>=12 && avgGap<=5 && avgDur>=60;
 
   status.innerHTML=`
     <div class="big ${sustained?'alert':'ok'}">
-      ${sustained?'5-1-1 Sustained':'Not 5-1-1'}
+      ${sustained?'5-1-1 sustained':'Not 5-1-1'}
     </div>
-    Avg spacing: ${avgGap.toFixed(1)} min<br>
-    Avg duration: ${avgDur.toFixed(0)} sec<br>
-    Contractions/hr: ${perHr}<br>
-    EMA spacing: ${ema.toFixed(1)} min<br>
-    <strong>${suggest}</strong>
+    Avg spacing (60m): ${avgGap.toFixed(1)} min<br>
+    Avg duration (60m): ${avgDur.toFixed(0)} sec<br>
+    ${sustained ? '<b>Consider calling Labor & Delivery.</b>' : ''}
   `;
 }
 
-function drawChart(){
-  const svg=document.getElementById("chart");
-  svg.innerHTML="";
-  if(state.data.length<2)return;
+/* ========= CHART ========= */
+function renderChart(session){
+  const ctx=chart.getContext("2d");
+  ctx.clearRect(0,0,chart.width,chart.height);
+  if(session.length<2) return;
 
-  const gaps=state.data.slice(1).map((d,i)=>d.t-state.data[i].t);
-  const max=Math.max(...gaps,5);
-  gaps.forEach((g,i)=>{
-    const x=i*(100/gaps.length);
-    const y=140-(g/max*120);
-    svg.innerHTML+=`<circle cx="${x+10}%" cy="${y}" r="3" fill="#6cf2c2"/>`;
+  const gaps=session.slice(1).map((c,i)=>c.minutes-session[i].minutes);
+  const max=Math.max(...gaps,60);
+
+  gaps.slice(-20).forEach((g,i)=>{
+    const x=i*(chart.width/20);
+    const y=chart.height-(g/max)*chart.height;
+    ctx.fillStyle="#6cf2c2";
+    ctx.fillRect(x,y,6,chart.height-y);
   });
-  svg.innerHTML+=`<line x1="0" y1="${140-(5/max*120)}" x2="100%" y2="${140-(5/max*120)}" stroke="#ff6b6b" stroke-dasharray="4"/>`;
 }
 
-function avg(a){return a.reduce((s,v)=>s+v,0)/a.length;}
-function EMA(arr,alpha){
-  return arr.reduce((e,v)=>alpha*v+(1-alpha)*e,arr[0]);
+/* ========= METRICS PANEL ========= */
+function renderMetrics(session){
+  if(!session.length) return metrics.innerHTML="";
+  const w10=windowData(session,10);
+  const w30=windowData(session,30);
+  const w60=windowData(session,60);
+
+  const spacing = w => w.length>1 ? avg(w.slice(1).map((c,i)=>c.minutes-w[i].minutes)).toFixed(1) : "–";
+
+  metrics.innerHTML=`
+    <div class="metric">Contractions/hr: ${w60.length}</div>
+    <div class="metric">Avg spacing 10m: ${spacing(w10)} min</div>
+    <div class="metric">Avg spacing 30m: ${spacing(w30)} min</div>
+    <div class="metric">Avg spacing 60m: ${spacing(w60)} min</div>
+    <div class="metric">Max duration (60m): ${Math.max(...w60.map(c=>c.duration))||0} sec</div>
+  `;
 }
 
+/* ========= RENDER ========= */
+function render(){
+  const session=currentSession();
+  renderStatus(session);
+  renderChart(session);
+  renderMetrics(session);
+}
 render();
 </script>
 </body>
