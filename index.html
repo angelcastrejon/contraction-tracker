@@ -4,63 +4,146 @@
 <meta charset="UTF-8">
 <title>Contraction Tracker</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+
 <style>
 :root {
-  --bg:#0f1220; --card:#1a1f3c; --text:#fff;
-  --accent:#6cf2c2; --warn:#ff6b6b; --active:#ffd166; --muted:#aab;
+  --bg: radial-gradient(circle at top, #121633, #0b0e1d 60%);
+  --glass: rgba(255, 255, 255, 0.08);
+  --glass-strong: rgba(255, 255, 255, 0.14);
+  --border: rgba(255, 255, 255, 0.25);
+  --text: #ffffff;
+  --accent: #6cf2c2;
+  --warn: #ff6b6b;
+  --active: #ffd166;
+  --muted: rgba(255,255,255,0.6);
 }
-*{box-sizing:border-box}
-body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text)}
-.container{max-width:720px;margin:auto;padding:1rem}
-.card{background:var(--card);border-radius:12px;padding:1rem;margin-bottom:1rem}
-h1{text-align:center;margin:.3rem 0}
-button{border:none;border-radius:12px;font-weight:bold}
-.primary-btn{width:100%;padding:1rem;font-size:1.2rem}
-.start{background:var(--accent);color:#000}
-.stop{background:var(--active);color:#000}
-.reset{background:transparent;border:1px solid var(--warn);color:var(--warn);padding:.6rem}
-.big{font-size:1.8rem;font-weight:bold;text-align:center}
-.ok{color:var(--accent)} .alert{color:var(--warn)}
-.timer{text-align:center;font-size:1.6rem}
-.footer{font-size:.75rem;color:var(--muted);text-align:center;margin-top:1.5rem}
-canvas{width:100%;height:220px}
-.metric{font-size:.9rem;margin:.25rem 0}
-
-/* Tabs */
-.tabs{display:flex;margin-bottom:.5rem}
-.tab{
-  flex:1;
-  padding:.7rem;
-  text-align:center;
-  background:#141838;
-  color:var(--muted);
-  border-radius:10px;
-  margin-right:.3rem;
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
 }
-.tab:last-child{margin-right:0}
-.tab.active{
-  background:var(--card);
-  color:var(--accent);
-  font-weight:bold;
+.container {
+  max-width: 720px;
+  margin: auto;
+  padding: 1rem;
 }
 
-/* Raw log */
-.log-entry{
-  display:flex;
-  justify-content:space-between;
-  font-size:.9rem;
-  padding:.4rem 0;
-  border-bottom:1px solid #2a2f55;
+/* ===== Glass Cards ===== */
+.card {
+  background: linear-gradient(
+    180deg,
+    var(--glass-strong),
+    var(--glass)
+  );
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.2),
+    0 12px 30px rgba(0,0,0,0.35);
+  padding: 1rem;
+  margin-bottom: 1rem;
 }
-.log-entry:last-child{border-bottom:none}
+
+h1 {
+  text-align: center;
+  margin: .4rem 0 .6rem;
+}
+
+/* ===== Tabs ===== */
+.tabs {
+  display: flex;
+  gap: .4rem;
+  margin-bottom: .6rem;
+}
+.tab {
+  flex: 1;
+  text-align: center;
+  padding: .7rem;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.05);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+.tab.active {
+  background: var(--glass-strong);
+  color: var(--accent);
+  font-weight: bold;
+}
+
+/* ===== Buttons ===== */
+button {
+  border: none;
+  border-radius: 16px;
+  font-weight: bold;
+}
+.primary-btn {
+  width: 100%;
+  padding: 1.1rem;
+  font-size: 1.2rem;
+}
+.start { background: var(--accent); color: #000; }
+.stop { background: var(--active); color: #000; }
+.reset {
+  width: 100%;
+  padding: .7rem;
+  margin-top: .5rem;
+  background: transparent;
+  border: 1px solid var(--warn);
+  color: var(--warn);
+}
+
+/* ===== Status / Timer ===== */
+.timer {
+  text-align: center;
+  font-size: 1.6rem;
+  margin-top: .3rem;
+}
+.since {
+  text-align: center;
+  font-size: 1rem;
+  color: var(--muted);
+  margin-top: .2rem;
+}
+.big {
+  font-size: 1.8rem;
+  font-weight: bold;
+  text-align: center;
+}
+.ok { color: var(--accent); }
+.alert { color: var(--warn); }
+
+/* ===== Raw Log ===== */
+.log-entry {
+  display: flex;
+  justify-content: space-between;
+  padding: .45rem 0;
+  font-size: .9rem;
+  border-bottom: 1px solid rgba(255,255,255,0.15);
+}
+.log-entry:last-child { border-bottom: none; }
+
+/* ===== Chart ===== */
+canvas { width: 100%; height: 220px; }
+
+/* ===== Footer ===== */
+.footer {
+  font-size: .75rem;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 1.5rem;
+}
 </style>
 </head>
-<body>
 
+<body>
 <div class="container">
+
 <h1>Contraction Tracker</h1>
 
-<!-- Tabs -->
 <div class="tabs">
   <div class="tab active" onclick="switchTab('log')">Log</div>
   <div class="tab" onclick="switchTab('trends')">Trends</div>
@@ -69,8 +152,11 @@ canvas{width:100%;height:220px}
 <!-- LOG TAB -->
 <div id="logTab">
   <div class="card">
-    <button id="timerBtn" class="primary-btn start" onclick="toggleTimer()">▶ Start Contraction</button>
+    <button id="timerBtn" class="primary-btn start" onclick="toggleTimer()">
+      ▶ Start Contraction
+    </button>
     <div id="timer" class="timer">00:00</div>
+    <div id="since" class="since">No contractions yet</div>
   </div>
 
   <div class="card" id="status">Waiting for data…</div>
@@ -85,7 +171,6 @@ canvas{width:100%;height:220px}
   <div class="card">
     <canvas id="chart"></canvas>
   </div>
-
   <div class="card">
     <div id="metrics"></div>
     <button class="reset" onclick="resetData()">Reset All Data</button>
@@ -96,39 +181,45 @@ canvas{width:100%;height:220px}
   This tool is for informational purposes only and is not medical advice.<br>
   Always follow the guidance of your medical team.
 </div>
+
 </div>
 
 <script>
 /* ========= STORAGE ========= */
-const STORAGE_KEY="contractions_v1";
-let contractions=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
-function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(contractions))}
+const STORAGE_KEY = "contractions_v1";
+let contractions = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(contractions)); }
 
 /* ========= TABS ========= */
 function switchTab(tab){
   document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
   document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
-  logTab.style.display=tab==="log"?"block":"none";
-  trendsTab.style.display=tab==="trends"?"block":"none";
+  logTab.style.display = tab==="log"?"block":"none";
+  trendsTab.style.display = tab==="trends"?"block":"none";
 }
 
 /* ========= TIMER ========= */
-let running=false,startTime=null,interval=null;
+let running=false, startTime=null, interval=null;
 function toggleTimer(){
   if(!running){
-    running=true; startTime=Date.now();
-    timerBtn.textContent="⏹ Stop & Save"; timerBtn.className="primary-btn stop";
+    running=true;
+    startTime=Date.now();
+    timerBtn.textContent="⏹ Stop & Save";
+    timerBtn.className="primary-btn stop";
     interval=setInterval(updateTimer,500);
   } else {
-    running=false; clearInterval(interval);
+    running=false;
+    clearInterval(interval);
     record(Math.round((Date.now()-startTime)/1000));
-    timerBtn.textContent="▶ Start Contraction"; timerBtn.className="primary-btn start";
+    timerBtn.textContent="▶ Start Contraction";
+    timerBtn.className="primary-btn start";
     timer.textContent="00:00";
   }
 }
 function updateTimer(){
   const e=Math.floor((Date.now()-startTime)/1000);
-  timer.textContent=`${String(Math.floor(e/60)).padStart(2,"0")}:${String(e%60).padStart(2,"0")}`;
+  timer.textContent=
+    `${String(Math.floor(e/60)).padStart(2,"0")}:${String(e%60).padStart(2,"0")}`;
 }
 
 /* ========= DATA ========= */
@@ -136,10 +227,11 @@ function record(duration){
   const now=new Date();
   contractions.push({
     time: now.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}),
+    timestamp: now.getTime(),
     minutes: now.getHours()*60+now.getMinutes()+now.getSeconds()/60,
     duration
   });
-  contractions.sort((a,b)=>a.minutes-b.minutes);
+  contractions.sort((a,b)=>a.timestamp-b.timestamp);
   save(); render();
 }
 function resetData(){
@@ -152,8 +244,8 @@ function inferSessions(data,gap=120){
   let s=[],c=[];
   data.forEach((d,i)=>{
     if(i===0){c=[d];return;}
-    const g=d.minutes-data[i-1].minutes;
-    if(g>=gap){s.push(c);c=[d]} else c.push(d);
+    if(d.minutes-data[i-1].minutes>=gap){s.push(c);c=[d];}
+    else c.push(d);
   });
   if(c.length) s.push(c);
   return s;
@@ -191,7 +283,7 @@ function renderStatus(session){
   `;
 }
 
-/* ========= RAW LOG (STACK STYLE) ========= */
+/* ========= RAW LOG + SINCE ========= */
 function renderLog(){
   rawLog.innerHTML="";
   [...contractions].reverse().forEach(c=>{
@@ -201,13 +293,20 @@ function renderLog(){
     rawLog.appendChild(d);
   });
 }
+function updateSince(){
+  if(!contractions.length){
+    since.textContent="No contractions yet";
+    return;
+  }
+  const diff=Math.floor((Date.now()-contractions.at(-1).timestamp)/1000);
+  since.textContent=`${diff} seconds since last contraction`;
+}
 
 /* ========= CHART ========= */
 function renderChart(session){
   const ctx=chart.getContext("2d");
   ctx.clearRect(0,0,chart.width,chart.height);
   if(session.length<2) return;
-
   const gaps=session.slice(1).map((c,i)=>c.minutes-session[i].minutes);
   const max=Math.max(...gaps,60);
   gaps.slice(-20).forEach((g,i)=>{
@@ -223,13 +322,12 @@ function renderMetrics(session){
   if(!session.length){metrics.innerHTML="";return;}
   const w10=windowData(session,10),w30=windowData(session,30),w60=windowData(session,60);
   const spacing=w=>w.length>1?avg(w.slice(1).map((c,i)=>c.minutes-w[i].minutes)).toFixed(1):"–";
-
   metrics.innerHTML=`
-    <div class="metric">Contractions/hr: ${w60.length}</div>
-    <div class="metric">Avg spacing 10m: ${spacing(w10)} min</div>
-    <div class="metric">Avg spacing 30m: ${spacing(w30)} min</div>
-    <div class="metric">Avg spacing 60m: ${spacing(w60)} min</div>
-    <div class="metric">Max duration (60m): ${Math.max(...w60.map(c=>c.duration))||0} sec</div>
+    <div>Contractions/hr: ${w60.length}</div>
+    <div>Avg spacing 10m: ${spacing(w10)} min</div>
+    <div>Avg spacing 30m: ${spacing(w30)} min</div>
+    <div>Avg spacing 60m: ${spacing(w60)} min</div>
+    <div>Max duration (60m): ${Math.max(...w60.map(c=>c.duration))||0} sec</div>
   `;
 }
 
@@ -240,7 +338,9 @@ function render(){
   renderLog();
   renderChart(session);
   renderMetrics(session);
+  updateSince();
 }
+setInterval(updateSince,1000);
 render();
 </script>
 </body>
