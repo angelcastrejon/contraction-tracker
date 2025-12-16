@@ -11,6 +11,7 @@
   --text: #ffffff;
   --accent: #6cf2c2;
   --warn: #ff6b6b;
+  --active: #ffd166;
 }
 * { box-sizing: border-box; }
 body {
@@ -37,21 +38,19 @@ h1 {
 }
 button {
   width: 100%;
-  font-size: 1.2rem;
-  padding: 1rem;
-  border-radius: 12px;
+  font-size: 1.4rem;
+  padding: 1.2rem;
+  border-radius: 14px;
   border: none;
-  background: var(--accent);
-  color: #000;
   font-weight: bold;
 }
-input {
-  width: 100%;
-  font-size: 1.2rem;
-  padding: 0.7rem;
-  margin-top: 0.5rem;
-  border-radius: 10px;
-  border: none;
+.start {
+  background: var(--accent);
+  color: #000;
+}
+.stop {
+  background: var(--active);
+  color: #000;
 }
 .status {
   text-align: center;
@@ -77,6 +76,11 @@ th, td {
   opacity: 0.7;
   text-align: center;
 }
+.timer {
+  font-size: 1.8rem;
+  text-align: center;
+  margin-top: 0.5rem;
+}
 </style>
 </head>
 <body>
@@ -85,8 +89,10 @@ th, td {
   <h1>Contraction Tracker</h1>
 
   <div class="card">
-    <button onclick="addNow()">➕ Add Contraction (Now)</button>
-    <input id="duration" type="number" placeholder="Duration (seconds)">
+    <button id="timerBtn" class="start" onclick="toggleTimer()">
+      ▶ Start Contraction
+    </button>
+    <div class="timer" id="timerDisplay">00:00</div>
   </div>
 
   <div class="card status" id="status">
@@ -110,28 +116,59 @@ th, td {
 <script>
 let contractions = JSON.parse(localStorage.getItem("contractions") || "[]");
 
+let timerRunning = false;
+let startTime = null;
+let timerInterval = null;
+
 function save() {
   localStorage.setItem("contractions", JSON.stringify(contractions));
 }
 
-function addNow() {
-  const dur = Number(document.getElementById("duration").value);
-  if (!dur) return;
+function toggleTimer() {
+  if (!timerRunning) {
+    // START
+    timerRunning = true;
+    startTime = Date.now();
+    document.getElementById("timerBtn").innerText = "⏹ Stop & Save";
+    document.getElementById("timerBtn").className = "stop";
+    timerInterval = setInterval(updateTimer, 500);
+    if (navigator.vibrate) navigator.vibrate(50);
+  } else {
+    // STOP
+    timerRunning = false;
+    clearInterval(timerInterval);
 
+    const durationSec = Math.round((Date.now() - startTime) / 1000);
+    addContraction(durationSec);
+
+    document.getElementById("timerBtn").innerText = "▶ Start Contraction";
+    document.getElementById("timerBtn").className = "start";
+    document.getElementById("timerDisplay").innerText = "00:00";
+
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+  }
+}
+
+function updateTimer() {
+  const elapsed = Math.floor((Date.now() - startTime) / 1000);
+  const m = Math.floor(elapsed / 60).toString().padStart(2, '0');
+  const s = (elapsed % 60).toString().padStart(2, '0');
+  document.getElementById("timerDisplay").innerText = `${m}:${s}`;
+}
+
+function addContraction(duration) {
   const now = new Date();
   const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds()/60;
 
   contractions.push({
     time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
     minutes,
-    duration: dur
+    duration
   });
 
   contractions.sort((a,b)=>a.minutes-b.minutes);
   save();
   render();
-
-  if (navigator.vibrate) navigator.vibrate(50);
 }
 
 function render() {
@@ -164,7 +201,6 @@ function updateStatus() {
 
   const avgGap = avg(gaps);
   const avgDur = avg(window.map(c=>c.duration));
-
   const meets = avgGap <= 5 && avgDur >= 60;
 
   document.getElementById("status").innerHTML = `
