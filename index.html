@@ -1,106 +1,150 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Contraction Tracker</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-    body {
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      max-width: 720px;
-      margin: auto;
-      padding: 1rem;
-      background: #fafafa;
-    }
-    h1 { font-size: 1.5rem; }
-    input, button {
-      padding: 0.5rem;
-      margin: 0.25rem 0;
-      font-size: 1rem;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 1rem;
-    }
-    th, td {
-      border-bottom: 1px solid #ddd;
-      padding: 0.5rem;
-      text-align: center;
-    }
-    .status {
-      margin-top: 1rem;
-      padding: 1rem;
-      background: #fff;
-      border-radius: 6px;
-    }
-    .alert {
-      color: #b00020;
-      font-weight: bold;
-    }
-  </style>
+<meta charset="UTF-8">
+<title>Contraction Tracker</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<style>
+:root {
+  --bg: #0f1220;
+  --card: #1a1f3c;
+  --text: #ffffff;
+  --accent: #6cf2c2;
+  --warn: #ff6b6b;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+.container {
+  padding: 1rem;
+  max-width: 600px;
+  margin: auto;
+}
+h1 {
+  text-align: center;
+  font-size: 1.6rem;
+  margin-bottom: 0.5rem;
+}
+.card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+button {
+  width: 100%;
+  font-size: 1.2rem;
+  padding: 1rem;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent);
+  color: #000;
+  font-weight: bold;
+}
+input {
+  width: 100%;
+  font-size: 1.2rem;
+  padding: 0.7rem;
+  margin-top: 0.5rem;
+  border-radius: 10px;
+  border: none;
+}
+.status {
+  text-align: center;
+  font-size: 1.2rem;
+}
+.big {
+  font-size: 2rem;
+  font-weight: bold;
+  margin: 0.5rem 0;
+}
+.alert { color: var(--warn); }
+.ok { color: var(--accent); }
+table {
+  width: 100%;
+  font-size: 0.9rem;
+}
+th, td {
+  padding: 0.3rem;
+  text-align: center;
+}
+.footer {
+  font-size: 0.75rem;
+  opacity: 0.7;
+  text-align: center;
+}
+</style>
 </head>
 <body>
 
-<h1>Contraction Tracker</h1>
+<div class="container">
+  <h1>Contraction Tracker</h1>
 
-<label>Start Time:</label><br>
-<input type="time" id="time"><br>
+  <div class="card">
+    <button onclick="addNow()">➕ Add Contraction (Now)</button>
+    <input id="duration" type="number" placeholder="Duration (seconds)">
+  </div>
 
-<label>Duration (seconds):</label><br>
-<input type="number" id="duration"><br>
+  <div class="card status" id="status">
+    Waiting for data…
+  </div>
 
-<button onclick="addContraction()">Add Contraction</button>
+  <div class="card">
+    <table>
+      <thead>
+        <tr><th>Time</th><th>Sec</th><th>Min Apart</th></tr>
+      </thead>
+      <tbody id="log"></tbody>
+    </table>
+  </div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Time</th>
-      <th>Duration (s)</th>
-      <th>Spacing (min)</th>
-    </tr>
-  </thead>
-  <tbody id="table"></tbody>
-</table>
-
-<div class="status" id="status"></div>
+  <div class="footer">
+    Rolling 60-minute window • Data stays on this device
+  </div>
+</div>
 
 <script>
-let contractions = [];
+let contractions = JSON.parse(localStorage.getItem("contractions") || "[]");
 
-function addContraction() {
-  const time = document.getElementById('time').value;
-  const duration = Number(document.getElementById('duration').value);
-
-  if (!time || !duration) return;
-
-  const minutes = toMinutes(time);
-  contractions.push({ time, minutes, duration });
-  contractions.sort((a, b) => a.minutes - b.minutes);
-
-  render();
+function save() {
+  localStorage.setItem("contractions", JSON.stringify(contractions));
 }
 
-function toMinutes(t) {
-  const [h, m] = t.split(':').map(Number);
-  return h * 60 + m;
+function addNow() {
+  const dur = Number(document.getElementById("duration").value);
+  if (!dur) return;
+
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds()/60;
+
+  contractions.push({
+    time: now.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}),
+    minutes,
+    duration: dur
+  });
+
+  contractions.sort((a,b)=>a.minutes-b.minutes);
+  save();
+  render();
+
+  if (navigator.vibrate) navigator.vibrate(50);
 }
 
 function render() {
-  const tbody = document.getElementById('table');
-  tbody.innerHTML = '';
+  const tbody = document.getElementById("log");
+  tbody.innerHTML = "";
 
-  contractions.forEach((c, i) => {
-    const spacing = i === 0 ? '' :
-      (c.minutes - contractions[i - 1].minutes).toFixed(1);
-
-    tbody.innerHTML += `
-      <tr>
-        <td>${c.time}</td>
-        <td>${c.duration}</td>
-        <td>${spacing}</td>
-      </tr>
-    `;
+  contractions.forEach((c,i)=>{
+    const gap = i===0 ? "" : (c.minutes - contractions[i-1].minutes).toFixed(1);
+    tbody.innerHTML += `<tr>
+      <td>${c.time}</td>
+      <td>${c.duration}</td>
+      <td>${gap}</td>
+    </tr>`;
   });
 
   updateStatus();
@@ -109,76 +153,67 @@ function render() {
 function updateStatus() {
   if (contractions.length < 3) return;
 
-  const last = contractions[contractions.length - 1].minutes;
+  const last = contractions[contractions.length-1].minutes;
   const window = contractions.filter(c => last - c.minutes <= 60);
-
   if (window.length < 3) return;
 
-  const spacings = [];
-  for (let i = 1; i < window.length; i++) {
-    spacings.push(window[i].minutes - window[i - 1].minutes);
+  let gaps = [];
+  for (let i=1;i<window.length;i++) {
+    gaps.push(window[i].minutes - window[i-1].minutes);
   }
 
-  const avgSpacing = avg(spacings);
-  const avgDuration = avg(window.map(c => c.duration));
+  const avgGap = avg(gaps);
+  const avgDur = avg(window.map(c=>c.duration));
 
-  const meets511 = avgSpacing <= 5 && avgDuration >= 60;
+  const meets = avgGap <= 5 && avgDur >= 60;
 
-  const forecast = forecastTime(window);
-
-  document.getElementById('status').innerHTML = `
-    <strong>Last 60 min average:</strong><br>
-    Spacing: ${avgSpacing.toFixed(1)} min<br>
-    Duration: ${avgDuration.toFixed(0)} sec<br><br>
-    ${meets511 ? '<span class="alert">Meets 5-1-1 criteria</span>' : 'Not at 5-1-1 yet'}<br><br>
-    <strong>Estimated time to 5-min spacing:</strong><br>
-    ${forecast ?? 'Insufficient trend'}
+  document.getElementById("status").innerHTML = `
+    <div class="big ${meets ? 'alert' : 'ok'}">
+      ${meets ? '5-1-1 MET' : 'Not 5-1-1'}
+    </div>
+    Avg spacing: ${avgGap.toFixed(1)} min<br>
+    Avg duration: ${avgDur.toFixed(0)} sec<br>
+    ${forecast(window)}
   `;
+
+  if (meets && navigator.vibrate) navigator.vibrate([200,100,200]);
 }
 
-function avg(arr) {
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
-}
+function forecast(window) {
+  if (window.length < 5) return "Forecast: gathering data";
 
-// Simple linear forecast on spacing trend
-function forecastTime(window) {
-  if (window.length < 4) return null;
-
-  const x = [];
-  const y = [];
-
-  for (let i = 1; i < window.length; i++) {
+  let x=[], y=[];
+  for (let i=1;i<window.length;i++) {
     x.push(window[i].minutes);
-    y.push(window[i].minutes - window[i - 1].minutes);
+    y.push(window[i].minutes - window[i-1].minutes);
   }
 
-  const slope = linearSlope(x, y);
-  if (slope >= 0) return 'No tightening trend detected';
+  const slope = linearSlope(x,y);
+  if (slope >= 0) return "Forecast: no tightening trend";
 
-  const lastSpacing = y[y.length - 1];
-  const minutesToFive = (5 - lastSpacing) / slope;
+  const lastGap = y[y.length-1];
+  const mins = (5 - lastGap) / slope;
+  if (mins < 0) return "Forecast: unstable";
 
-  if (minutesToFive < 0) return 'Trend unstable';
-
-  const forecastMinutes = window[window.length - 1].minutes + minutesToFive;
-  const h = Math.floor(forecastMinutes / 60) % 24;
-  const m = Math.round(forecastMinutes % 60).toString().padStart(2, '0');
-
-  return `${h}:${m}`;
+  const t = window[window.length-1].minutes + mins;
+  const h = Math.floor(t/60)%24;
+  const m = Math.round(t%60).toString().padStart(2,'0');
+  return `Forecast ~ ${h}:${m}`;
 }
 
-function linearSlope(x, y) {
-  const n = x.length;
-  const xMean = avg(x);
-  const yMean = avg(y);
+function avg(a){ return a.reduce((s,v)=>s+v,0)/a.length; }
 
-  let num = 0, den = 0;
-  for (let i = 0; i < n; i++) {
-    num += (x[i] - xMean) * (y[i] - yMean);
-    den += (x[i] - xMean) ** 2;
+function linearSlope(x,y){
+  const xm = avg(x), ym = avg(y);
+  let n=0,d=0;
+  for(let i=0;i<x.length;i++){
+    n+=(x[i]-xm)*(y[i]-ym);
+    d+=(x[i]-xm)**2;
   }
-  return num / den;
+  return n/d;
 }
+
+render();
 </script>
 
 </body>
