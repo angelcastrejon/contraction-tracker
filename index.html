@@ -11,19 +11,48 @@
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:system-ui;background:var(--bg);color:var(--text)}
-.container{max-width:700px;margin:auto;padding:1rem}
+.container{max-width:720px;margin:auto;padding:1rem}
 .card{background:var(--card);border-radius:12px;padding:1rem;margin-bottom:1rem}
 h1{text-align:center;margin:.3rem 0}
-button{width:100%;padding:1rem;font-size:1.2rem;border:none;border-radius:12px;font-weight:bold}
+button{border:none;border-radius:12px;font-weight:bold}
+.primary-btn{width:100%;padding:1rem;font-size:1.2rem}
 .start{background:var(--accent);color:#000}
 .stop{background:var(--active);color:#000}
-.reset{background:transparent;border:1px solid var(--warn);color:var(--warn)}
+.reset{background:transparent;border:1px solid var(--warn);color:var(--warn);padding:.6rem}
 .big{font-size:1.8rem;font-weight:bold;text-align:center}
 .ok{color:var(--accent)} .alert{color:var(--warn)}
 .timer{text-align:center;font-size:1.6rem}
 .footer{font-size:.75rem;color:var(--muted);text-align:center;margin-top:1.5rem}
-canvas{width:100%;height:200px}
-.metric{font-size:.9rem;margin:.2rem 0}
+canvas{width:100%;height:220px}
+.metric{font-size:.9rem;margin:.25rem 0}
+
+/* Tabs */
+.tabs{display:flex;margin-bottom:.5rem}
+.tab{
+  flex:1;
+  padding:.7rem;
+  text-align:center;
+  background:#141838;
+  color:var(--muted);
+  border-radius:10px;
+  margin-right:.3rem;
+}
+.tab:last-child{margin-right:0}
+.tab.active{
+  background:var(--card);
+  color:var(--accent);
+  font-weight:bold;
+}
+
+/* Raw log */
+.log-entry{
+  display:flex;
+  justify-content:space-between;
+  font-size:.9rem;
+  padding:.4rem 0;
+  border-bottom:1px solid #2a2f55;
+}
+.log-entry:last-child{border-bottom:none}
 </style>
 </head>
 <body>
@@ -31,20 +60,36 @@ canvas{width:100%;height:200px}
 <div class="container">
 <h1>Contraction Tracker</h1>
 
-<div class="card">
-  <button id="timerBtn" class="start" onclick="toggleTimer()">▶ Start Contraction</button>
-  <div id="timer" class="timer">00:00</div>
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="switchTab('log')">Log</div>
+  <div class="tab" onclick="switchTab('trends')">Trends</div>
 </div>
 
-<div class="card" id="status">Waiting for data…</div>
+<!-- LOG TAB -->
+<div id="logTab">
+  <div class="card">
+    <button id="timerBtn" class="primary-btn start" onclick="toggleTimer()">▶ Start Contraction</button>
+    <div id="timer" class="timer">00:00</div>
+  </div>
 
-<div class="card">
-  <canvas id="chart"></canvas>
+  <div class="card" id="status">Waiting for data…</div>
+
+  <div class="card">
+    <div id="rawLog"></div>
+  </div>
 </div>
 
-<div class="card">
-  <div id="metrics"></div>
-  <button class="reset" onclick="resetData()">Reset All Data</button>
+<!-- TRENDS TAB -->
+<div id="trendsTab" style="display:none">
+  <div class="card">
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="card">
+    <div id="metrics"></div>
+    <button class="reset" onclick="resetData()">Reset All Data</button>
+  </div>
 </div>
 
 <div class="footer">
@@ -54,29 +99,36 @@ canvas{width:100%;height:200px}
 </div>
 
 <script>
-/* ========= STORAGE (UNCHANGED, SAFE) ========= */
-const STORAGE_KEY = "contractions_v1";
-let contractions = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(contractions)); }
+/* ========= STORAGE ========= */
+const STORAGE_KEY="contractions_v1";
+let contractions=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
+function save(){localStorage.setItem(STORAGE_KEY,JSON.stringify(contractions))}
+
+/* ========= TABS ========= */
+function switchTab(tab){
+  document.querySelectorAll(".tab").forEach(t=>t.classList.remove("active"));
+  document.querySelector(`[onclick="switchTab('${tab}')"]`).classList.add("active");
+  logTab.style.display=tab==="log"?"block":"none";
+  trendsTab.style.display=tab==="trends"?"block":"none";
+}
 
 /* ========= TIMER ========= */
-let running=false, startTime=null, interval=null;
+let running=false,startTime=null,interval=null;
 function toggleTimer(){
   if(!running){
     running=true; startTime=Date.now();
-    timerBtn.textContent="⏹ Stop & Save"; timerBtn.className="stop";
+    timerBtn.textContent="⏹ Stop & Save"; timerBtn.className="primary-btn stop";
     interval=setInterval(updateTimer,500);
   } else {
     running=false; clearInterval(interval);
-    const sec=Math.round((Date.now()-startTime)/1000);
-    record(sec);
-    timerBtn.textContent="▶ Start Contraction"; timerBtn.className="start";
+    record(Math.round((Date.now()-startTime)/1000));
+    timerBtn.textContent="▶ Start Contraction"; timerBtn.className="primary-btn start";
     timer.textContent="00:00";
   }
 }
 function updateTimer(){
   const e=Math.floor((Date.now()-startTime)/1000);
-  timer.textContent=`${String(Math.floor(e/60)).padStart(2,'0')}:${String(e%60).padStart(2,'0')}`;
+  timer.textContent=`${String(Math.floor(e/60)).padStart(2,"0")}:${String(e%60).padStart(2,"0")}`;
 }
 
 /* ========= DATA ========= */
@@ -92,47 +144,42 @@ function record(duration){
 }
 function resetData(){
   if(!confirm("Erase all data on this device?")) return;
-  contractions=[];
-  save();
-  render();
+  contractions=[]; save(); render();
 }
 
 /* ========= SESSION INFERENCE ========= */
-function inferSessions(data, gap=120){
-  let sessions=[], current=[];
-  data.forEach((c,i)=>{
-    if(i===0){ current=[c]; return; }
-    const g=c.minutes-data[i-1].minutes;
-    if(g>=gap){ sessions.push(current); current=[c]; }
-    else current.push(c);
+function inferSessions(data,gap=120){
+  let s=[],c=[];
+  data.forEach((d,i)=>{
+    if(i===0){c=[d];return;}
+    const g=d.minutes-data[i-1].minutes;
+    if(g>=gap){s.push(c);c=[d]} else c.push(d);
   });
-  if(current.length) sessions.push(current);
-  return sessions;
+  if(c.length) s.push(c);
+  return s;
 }
 function currentSession(){
-  const sessions=inferSessions(contractions);
-  return sessions.length ? sessions[sessions.length-1] : [];
+  const s=inferSessions(contractions);
+  return s.length?s[s.length-1]:[];
 }
 
 /* ========= METRICS ========= */
-function avg(a){ return a.reduce((s,v)=>s+v,0)/a.length; }
-function windowData(session, mins){
+function avg(a){return a.reduce((s,v)=>s+v,0)/a.length}
+function windowData(session,m){
   if(!session.length) return [];
   const last=session.at(-1).minutes;
-  return session.filter(c=>last-c.minutes<=mins);
+  return session.filter(c=>last-c.minutes<=m);
 }
 
-/* ========= STATUS / L&D ========= */
+/* ========= STATUS ========= */
 function renderStatus(session){
-  if(session.length<3){ status.textContent="Gathering data…"; return; }
+  if(session.length<3){status.textContent="Gathering data…";return;}
   const w60=windowData(session,60);
   if(w60.length<3) return;
 
   const gaps=w60.slice(1).map((c,i)=>c.minutes-w60[i].minutes);
-  const avgGap=avg(gaps);
-  const avgDur=avg(w60.map(c=>c.duration));
-
-  const sustained = w60.length>=12 && avgGap<=5 && avgDur>=60;
+  const avgGap=avg(gaps), avgDur=avg(w60.map(c=>c.duration));
+  const sustained=w60.length>=12 && avgGap<=5 && avgDur>=60;
 
   status.innerHTML=`
     <div class="big ${sustained?'alert':'ok'}">
@@ -140,8 +187,19 @@ function renderStatus(session){
     </div>
     Avg spacing (60m): ${avgGap.toFixed(1)} min<br>
     Avg duration (60m): ${avgDur.toFixed(0)} sec<br>
-    ${sustained ? '<b>Consider calling Labor & Delivery.</b>' : ''}
+    ${sustained?'<b>Consider calling Labor & Delivery.</b>':''}
   `;
+}
+
+/* ========= RAW LOG (STACK STYLE) ========= */
+function renderLog(){
+  rawLog.innerHTML="";
+  [...contractions].reverse().forEach(c=>{
+    const d=document.createElement("div");
+    d.className="log-entry";
+    d.innerHTML=`<span>${c.time}</span><span>${c.duration}s</span>`;
+    rawLog.appendChild(d);
+  });
 }
 
 /* ========= CHART ========= */
@@ -152,7 +210,6 @@ function renderChart(session){
 
   const gaps=session.slice(1).map((c,i)=>c.minutes-session[i].minutes);
   const max=Math.max(...gaps,60);
-
   gaps.slice(-20).forEach((g,i)=>{
     const x=i*(chart.width/20);
     const y=chart.height-(g/max)*chart.height;
@@ -163,12 +220,9 @@ function renderChart(session){
 
 /* ========= METRICS PANEL ========= */
 function renderMetrics(session){
-  if(!session.length) return metrics.innerHTML="";
-  const w10=windowData(session,10);
-  const w30=windowData(session,30);
-  const w60=windowData(session,60);
-
-  const spacing = w => w.length>1 ? avg(w.slice(1).map((c,i)=>c.minutes-w[i].minutes)).toFixed(1) : "–";
+  if(!session.length){metrics.innerHTML="";return;}
+  const w10=windowData(session,10),w30=windowData(session,30),w60=windowData(session,60);
+  const spacing=w=>w.length>1?avg(w.slice(1).map((c,i)=>c.minutes-w[i].minutes)).toFixed(1):"–";
 
   metrics.innerHTML=`
     <div class="metric">Contractions/hr: ${w60.length}</div>
@@ -183,6 +237,7 @@ function renderMetrics(session){
 function render(){
   const session=currentSession();
   renderStatus(session);
+  renderLog();
   renderChart(session);
   renderMetrics(session);
 }
